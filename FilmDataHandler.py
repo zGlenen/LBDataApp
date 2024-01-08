@@ -23,6 +23,6 @@ class FilmDataHandler:
         firstLine = True
         for film in self.films:
             if not firstLine:
-                if datetime.strptime(film.date,'%Y-%m-%d') >= date and datetime.strptime(film.date,'%Y-%m-%d') <= date2:
+                if datetime.strptime(film.date,'%Y-%m-%d') >= datetime.strptime(date,'%Y-%m-%d') and datetime.strptime(film.date,'%Y-%m-%d') <= datetime.strptime(date2,'%Y-%m-%d'):
                     self.output_films.append(Film(film.date,film.name,film.year,film.letterboxd_uri))
             firstLine = False

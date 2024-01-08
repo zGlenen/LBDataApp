@@ -21,7 +21,14 @@ def validate_year(year):
         else:
             return False
         
-
+def validate_date(date):
+    format = "%Y-%m-%d"
+    if date:
+        try:
+            return bool(datetime.strptime(date, format))
+        except ValueError:
+            return False
+    
 
 def main():
 
@@ -54,18 +61,20 @@ def main():
                 year = input("Epic sauce! Please enter a year: ")
                 if validate_year(year):
                     year2 = input("Awesome! Enter a second year for range:")
-                    if year2 == 'b':
-                        year2 = year
+
                     if validate_year(year2):
                         filmDataHandler.check_year_released(year,year2)
                         valid = True
         elif answer == '2': 
             ##validate for dates
-            date = input("Epic sauce! Please enter a date: ")
-            date2 = input("Awesome! Enter a second date for range or q to end:")
-            if date2 == 'q':
-                date2 = date
-            filmDataHandler.check_date_added(date,date2)
+            valid = False
+            while (not valid):
+                date = input("Epic sauce! Please enter a date: ")
+                if validate_date(date):
+                    date2 = input("Awesome! Enter a second date for range:")
+                    if validate_date(date2):
+                        filmDataHandler.check_date_added(date,date2)
+                        valid = True
         else: 
             print("Oops try again!")
         
