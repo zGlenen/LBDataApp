@@ -8,8 +8,5 @@ class Film():
         self.id = id
         self.details = details
 
-    def print(self):
-        #if name contains comma, surround quotes on it
-        return "{},{},{},{}\n".format(self.date,self.name,self.year,self.letterboxd_uri)
-
-    
+    def __str__(self):
+        return f"ID: {self.id} {self.name} ({self.year}) - {self.letterboxd_uri}\n"
