@@ -17,34 +17,46 @@ def write_file(films,file_name):
 def main():
     file_name_in = "files/output.csv"
     data = open_file(file_name_in)
-    num_of_stats = 3
+    num_of_stats = 5
     
     utility = Util(num_of_stats)
     filmDataHandler = FilmDataHandler([])
+    #filmDataHandler.insert_genre_db()
     filmDataHandler.scrape_data(data)
 
     #Sort by genre
     genre = "Horror"
     if filmDataHandler.get_film_by_genre(genre):
-        print(f"Films in list with {genre} genre: ")
-        filmDataHandler.print_films()
+        print(f"\nFilms in list with {genre} genre: ")
+        count = filmDataHandler.print_films()
+        print(f"You've seen {count} {genre} movies!\n")
+
+    #get year of greatest occurance of that genre
+        common_year = filmDataHandler.get_most_common_release_year()
+        filmDataHandler.get_film_by_genre(genre,common_year)
+        count = filmDataHandler.print_films()
+        print(f"You've seen the {count} {genre} movies in {common_year}:")
+
     else: 
         print(f"There are no films in the list with {genre} genre")
 
-    #Sort genre by most watched
+    #Get all genre stats
     genre_dict = filmDataHandler.get_genre_stats()
+    print("\nGenre stats of every movie you've seen:")
+    for a,b in genre_dict.items():
+         print(f"{a} ({b})")
+
+    #Get top genre stats
     genre_dict = utility.get_highest_values_in_object(genre_dict)
-    print("Genre stats across films in list given:")
+    print(f"\nTop {num_of_stats} Genre stats across movies you've seen:")
     for a,b in genre_dict.items():
          print(f"{a} ({b})")
     
     #FYI films that cannot be added
     if (filmDataHandler.unreadable_films):
-        print("Following film(s) are unreadble:")
+        print("\nFollowing film(s) are unreadble:")
         for i in filmDataHandler.unreadable_films:
             print(i)
-
-
 
 if __name__ == "__main__":
     main()          
