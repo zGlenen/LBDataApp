@@ -24,14 +24,14 @@ class FilmDataHandler:
     #Select record from DB using letterboxd url from CSV (will be unique), if it does exist add it to the object list
     def check_record_exists(self,url,cursor):
         exists = False
-        statement = "SELECT film.film_id, film.title, film.release_year, film.letterboxd_url, film.date_added, GROUP_CONCAT(g.name) AS genres, GROUP_CONCAT(fc.country) AS countries FROM film INNER JOIN film_genre AS fg ON film.film_id = fg.film_id INNER JOIN genre AS g ON fg.genre_id = g.id INNER JOIN film_country AS fc ON fc.film_id = film.film_id WHERE film.letterboxd_url = ? GROUP BY film.film_id;"
+        statement = "SELECT film.film_id, film.title, film.release_year, film.letterboxd_url, film.date_added, GROUP_CONCAT(DISTINCT g.name) AS genres, GROUP_CONCAT(DISTINCT fc.country) AS countries FROM film INNER JOIN film_genre AS fg ON film.film_id = fg.film_id INNER JOIN genre AS g ON fg.genre_id = g.id INNER JOIN film_country AS fc ON fc.film_id = film.film_id WHERE film.letterboxd_url = ? GROUP BY film.film_id;"
         cursor.execute(statement, (url,))
         row = cursor.fetchone()
 
         if row:
             details = {
-                "genres" : row[5].split(",")
-                #get countries
+                "genres" : row[5].split(","),
+                "production_countries" : row[6].split(",")
             }
             self.films.append(Film(row[4],row[1],row[2],url,row[0],details))
             exists = True  
@@ -69,15 +69,20 @@ class FilmDataHandler:
                                 cursor.execute("INSERT INTO film_country (film_id, country) VALUES (?,?)",(tmdb_id,c["name"]))
 
                             tempOb = {
-                                "genres" : []
-                                
+                                "genres" : [],
+                                "production_countries" : []
                             }
                             for g in details["genres"]:
                                 tempOb["genres"].append(g["name"])
                             details["genres"] = tempOb["genres"]
 
+                            for c in details["production_countries"]:
+                                tempOb["production_countries"].append(c["name"])
+                            details["production_countries"] = tempOb["production_countries"]
+
                             self.films.append(Film(date_added,title,release_year,url,tmdb_id,details))
-                            print(title + ": " + tmdb_id)
+                            print(title + ": " + tmdb_id + " : ")
+                            print(details)
 
                         else:
                             self.unreadable_films.append(f"{title} : {release_year} : NOT IN DB")
