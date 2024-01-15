@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+
+{% block head %}
+  <title>Films Wrapped</title>
+{% endblock %}
+
+{% block body %}
+  <div class="container col-md-6">
+
+    <div id="inputScreen">
+      <h1>Uncover Your Movies</h1>
+      <p class="lead">Punch in your Letterboxd username to get cooking.</p>
+      <div class="input-group ">
+          <input id="usernameInput" type="text" class="form-control" placeholder="Username" aria-label="Username">
+      </div>
+      <div class="m-2">
+          <button id="usernameInputBtn" type="button" class="btn btn-light">Punched</button>
+      </div>
+      <div class="lead">
+          <p id="usernameInError" style="color: red;"></p>
+      </div>
+    </div>
+    <div id="loadingScreen" style="display: none;">
+      <h1>I'm Workin' Here!</h1>
+      <div id="loading" class="loader text-center" ></div>  
+    </div>   
+    <div id="result-container">
+
+    </div>
+  </div> 
+
+   
+{% endblock %}

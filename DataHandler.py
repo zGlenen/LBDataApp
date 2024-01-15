@@ -4,24 +4,19 @@ from collections import Counter
 import sqlite3
 import requests
 import json
+from datetime import datetime 
 
-class FilmDataHandler:
+class DataHandler:
     TMDB_API_KEY = "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiIzYTAwZDZlNGFkNzQyYTY0MTZmNjEwYTE0N2E4ODA2NCIsInN1YiI6IjY1OWVlNWVjOTFiNTMwMDFmZGYxZGMxOSIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.r1uBAc6yrAsFwJxICmap8RrNk8Cf_w1RIwlrwTu4aPM"
 
-    def __init__(self,films):
-        self.films = films
+    def __init__(self):
+        self.films = []
         self.output_films = []
         self.unreadable_films = []
-
-    def print_films(self):
-        count = 0
-        for film in self.output_films:
-            if film:
-                count += 1
-                print(film)
-        return count
+        self.is_using_csv = False
+        self.temp_title = None
+        self.temp_release_year = None
             
-    #Select record from DB using letterboxd url from CSV (will be unique), if it does exist add it to the object list
     def check_record_exists(self,url,cursor):
         exists = False
         statement = "SELECT film.film_id, film.title, film.release_year, film.letterboxd_url, film.date_added, GROUP_CONCAT(DISTINCT g.name) AS genres, GROUP_CONCAT(DISTINCT fc.country) AS countries, film.runtime FROM film INNER JOIN film_genre AS fg ON film.film_id = fg.film_id INNER JOIN genre AS g ON fg.genre_id = g.id INNER JOIN film_country AS fc ON fc.film_id = film.film_id WHERE film.letterboxd_url = ? GROUP BY film.film_id;"
@@ -70,8 +65,15 @@ class FilmDataHandler:
         conn = sqlite3.connect('database/FilmDataDB.db')
         cursor = conn.cursor()
 
-        for film in data:
-            date_added, release_year, title, url = film[0], film[2], film[1], film[3]
+        for item in data:
+            #Check to see if CSV
+            if item[0].isdigit():
+                date_added, release_year, title, url = item[0], item[2], item[1], item[3]
+                self.is_using_csv = True
+            else:
+                #date added wont exist here, need to get release year and title from the api
+                url = item
+                date_added = datetime.now()
 
             if date_added != 'Date' and not self.check_record_exists(url,cursor):                
                 page = requests.get(url)
@@ -84,6 +86,11 @@ class FilmDataHandler:
                     if "tv" not in tmdb_url:  
                         tmdb_id = tmdb_url.split("/")[-2]  # Extract TMDB ID from the URL
                         details = self.parse_api(tmdb_id,cursor)
+
+                        if not self.is_using_csv:
+                            title = self.temp_title
+                            release_year = self.temp_release_year
+                            
 
                         if details:
                             cursor.execute("INSERT INTO film (film_id, title, release_year, date_added, letterboxd_url, runtime) VALUES (?,?,?,?,?,?)",
@@ -114,9 +121,6 @@ class FilmDataHandler:
 
                         
                             self.films.append(Film(date_added,title,release_year,url,tmdb_id,details))
-                            print(title + ": " + tmdb_id + " : ")
-                            print(details)
-
                         else:
                             self.unreadable_films.append(f"{title} : {release_year} : NOT IN DB")
                     else:
@@ -160,6 +164,10 @@ class FilmDataHandler:
         complete_data_credits = self.get_tmdb_film_credits(id)
 
         if 'success' not in complete_data_details:
+            if not self.is_using_csv:
+                self.temp_release_year = complete_data_details["release_date"][:4]
+                self.temp_title = complete_data_details["title"]
+
             people = self.insert_person_db(complete_data_credits,cursor)
 
             runtime = complete_data_details["runtime"]  
@@ -191,41 +199,6 @@ class FilmDataHandler:
 
         return FilmDetails(genres,production_countries,runtime,cast,crew)
 
-    def get_film_by_genre(self, genre,year=0):
-        self.output_films.clear()
-        count = 0
-        for film in self.films:
-            if year == 0 or film.year_released == year:
-                if film.details:
-                    for g in film.details.genres:
-                        if g == genre:
-                            count += 1
-                            self.output_films.append(film)
-        return count > 0
-
-    def get_genre_stats(self, year=0):
-        genre_list = {}
-
-        for film in self.films:
-            if year == 0 or year == film.year_released:
-                if film.details:
-                    for g in film.details.genres:
-                        if g in genre_list:
-                            genre_list[g] += 1
-                        else:
-                            genre_list[g] = 1
-        return genre_list
-
-    def get_most_common_release_year(self):
-        if not self.output_films:
-            return None
-
-        release_years = [film.year_released for film in self.output_films]
-        counter = Counter(release_years)
-
-        most_common_release_year = counter.most_common(1)[0][0]
-        return most_common_release_year
-
     def insert_person_db(self,credits,cursor):
         people = credits['cast']
         people.extend(credits['crew'])
@@ -246,20 +219,25 @@ class FilmDataHandler:
         conn = sqlite3.connect('database/FilmDataDB.db')
         cursor = conn.cursor()
 
-        url = "https://api.themoviedb.org/3/genre/movie/list"
+        statement = "SELECT * FROM genre"
+        cursor.execute(statement)
+        genre_row = cursor.fetchall()
 
-        headers = {
-            "accept": "application/json",
-            "Authorization": f"Bearer {self.TMDB_API_KEY}"
-        }
+        if not genre_row:
+            url = "https://api.themoviedb.org/3/genre/movie/list"
 
-        response = requests.get(url, headers=headers)
+            headers = {
+                "accept": "application/json",
+                "Authorization": f"Bearer {self.TMDB_API_KEY}"
+            }
 
-        genres = json.loads(response.text)
+            response = requests.get(url, headers=headers)
 
-        for i in genres["genres"]:
+            genres = json.loads(response.text)
 
-            cursor.execute("INSERT INTO genre (id, name) VALUES (?,?)",(i["id"],i["name"]))
+            for i in genres["genres"]:
+
+                cursor.execute("INSERT INTO genre (id, name) VALUES (?,?)",(i["id"],i["name"]))
                        
         conn.commit()
         conn.close()
