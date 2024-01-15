@@ -35,7 +35,7 @@ def main():
         common_year = filmDataHandler.get_most_common_release_year()
         filmDataHandler.get_film_by_genre(genre,common_year)
         count = filmDataHandler.print_films()
-        print(f"You've seen the {count} {genre} movies in {common_year}:")
+        print(f"You've seen {count} {genre} movies in {common_year}!")
 
     else: 
         print(f"There are no films in the list with {genre} genre")
