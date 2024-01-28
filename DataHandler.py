@@ -4,6 +4,7 @@ from collections import Counter
 import sqlite3
 import requests
 import json
+import re
 from datetime import datetime 
 
 class DataHandler:
@@ -13,17 +14,21 @@ class DataHandler:
         self.films = []
         self.output_films = []
         self.unreadable_films = []
-        self.is_using_csv = False
         self.temp_title = None
         self.temp_release_year = None
             
     def check_record_exists(self,url,cursor):
+        
         exists = False
-        statement = "SELECT film.film_id, film.title, film.release_year, film.letterboxd_url, film.date_added, GROUP_CONCAT(DISTINCT g.name) AS genres, GROUP_CONCAT(DISTINCT fc.country) AS countries, film.runtime FROM film INNER JOIN film_genre AS fg ON film.film_id = fg.film_id INNER JOIN genre AS g ON fg.genre_id = g.id INNER JOIN film_country AS fc ON fc.film_id = film.film_id WHERE film.letterboxd_url = ? GROUP BY film.film_id;"
+        statement = f"SELECT id FROM film WHERE letterboxd_url = ?"
         cursor.execute(statement, (url,))
         row = cursor.fetchone()
-
+        
         if row:
+
+            statement = f"SELECT film.id, film.title, film.release_year, film.letterboxd_url, film.date_added, GROUP_CONCAT(DISTINCT g.name) AS genres, GROUP_CONCAT(DISTINCT fc.country) AS countries, film.runtime FROM film INNER JOIN film_genre AS fg ON film.film_id = fg.film_id INNER JOIN genre AS g ON fg.genre_id = g.id INNER JOIN film_country AS fc ON fc.film_id = film.film_id WHERE film.film_id = ? GROUP BY film.film_id;"
+            cursor.execute(statement, (row[0]))
+            row = cursor.fetchone()
 
             id = row[0]
             title = row[1]
@@ -54,11 +59,18 @@ class DataHandler:
                 p_job = c[2]
                 crew.append(Person(p_id,p_name,job=p_job))
 
-            self.films.append(Film(date_added,title,release_year,letterboxd_url,id,FilmDetails(genres,production_countries,runtime,cast,crew)))
+            self.films.append(Film(date_added,title,release_year,letterboxd_url,id,FilmDetails(genres,production_countries,runtime,cast,crew,title,release_year)))
             exists = True  
         
         return exists  
 
+    def is_valid_date_format(self,date_string):
+        # Define the regular expression for the 'YYYY-MM-DD' format
+        date_pattern = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+
+        # Check if the date_string matches the pattern
+        return bool(date_pattern.match(date_string))
+    
     #Using letterboxd url from CSV get tmdb ID from the button on website
     def scrape_data(self,data):
 
@@ -66,16 +78,19 @@ class DataHandler:
         cursor = conn.cursor()
 
         for item in data:
-            #Check to see if CSV
-            if item[0].isdigit():
-                date_added, release_year, title, url = item[0], item[2], item[1], item[3]
-                self.is_using_csv = True
-            else:
-                #date added wont exist here, need to get release year and title from the api
-                url = item
-                date_added = datetime.now()
 
-            if date_added != 'Date' and not self.check_record_exists(url,cursor):                
+            url = item
+            date_added = datetime.now()
+
+            page = requests.get(url)
+            soup = BeautifulSoup(page.content,"html.parser")               
+            span_el = soup.find("span", class_="film-title-wrapper")
+            a_el = span_el.find("a")
+            temp_href = a_el.get("href")
+            url = "https://letterboxd.com" + temp_href
+
+            if not self.check_record_exists(url,cursor):                
+
                 page = requests.get(url)
                 soup = BeautifulSoup(page.content,"html.parser")
                 tmdb_link = soup.find("a", {"class": "micro-button track-event", "data-track-action": "TMDb", "target": "_blank"})
@@ -87,20 +102,19 @@ class DataHandler:
                         tmdb_id = tmdb_url.split("/")[-2]  # Extract TMDB ID from the URL
                         details = self.parse_api(tmdb_id,cursor)
 
-                        if not self.is_using_csv:
-                            title = self.temp_title
-                            release_year = self.temp_release_year
-                            
-
                         if details:
-                            cursor.execute("INSERT INTO film (film_id, title, release_year, date_added, letterboxd_url, runtime) VALUES (?,?,?,?,?,?)",
-                            (tmdb_id, title, release_year, date_added, url, details.runtime))
-                            conn.commit()
+                            cursor.execute(f"INSERT INTO film (id, title, release_year, date_added, runtime, letterboxd_url) VALUES (?,?,?,?,?,?)",(tmdb_id, details.title, details.release_date, date_added, details.runtime, url))
+                            
                             for g in details.genres:
                                 cursor.execute("INSERT INTO film_genre (film_id, genre_id) VALUES (?,?)",(tmdb_id,int(g.id)))
                             for c in details.production_countries:
                                 cursor.execute("INSERT INTO film_country (film_id, country) VALUES (?,?)",(tmdb_id,c))
 
+###KNOWNBUG
+                            # for p in details.cast:
+                            #     cursor.execute("INSERT INTO film_person_cast (film_id, person_id, character) VALUES (?, ?, ?)", (tmdb_id, p.id, p.character))
+                            # for p in details.crew:
+                            #     cursor.execute("SELECT * FROM film_person_crew WHERE film_id = ? AND person_id = ?", (tmdb_id, p.id))
                             for p in details.cast:
                                 cursor.execute("SELECT * FROM film_person_cast WHERE film_id = ? AND person_id = ?", (tmdb_id, p.id))
                                 existing_record = cursor.fetchone()
@@ -119,15 +133,16 @@ class DataHandler:
                                 else:
                                     print(f"Record with film_id={tmdb_id} and person_id={p.id} already exists.")
 
+                            
                         
-                            self.films.append(Film(date_added,title,release_year,url,tmdb_id,details))
+                            self.films.append(Film(date_added,details.title,details.release_date,url,tmdb_id,details))
                         else:
-                            self.unreadable_films.append(f"{title} : {release_year} : NOT IN DB")
+                            self.unreadable_films.append(f"{details.title} : {details.release_date} : NOT IN DB")
                     else:
                         #not readaable as they are a TV show
-                        self.unreadable_films.append(f"{title} : {release_year} : TV SHOW")
+                        self.unreadable_films.append(f"{details.title} : {details.release_date} : TV SHOW")
                 else:
-                    print(f"{title} {release_year}: Could Not Find TMDb Link")
+                    print(f"{details.title} {details.release_date}: Could Not Find TMDb Link")
 
         conn.commit()
         conn.close()
@@ -164,9 +179,9 @@ class DataHandler:
         complete_data_credits = self.get_tmdb_film_credits(id)
 
         if 'success' not in complete_data_details:
-            if not self.is_using_csv:
-                self.temp_release_year = complete_data_details["release_date"][:4]
-                self.temp_title = complete_data_details["title"]
+            
+            release_date = complete_data_details["release_date"][:4]
+            title = complete_data_details["title"]
 
             people = self.insert_person_db(complete_data_credits,cursor)
 
@@ -197,7 +212,7 @@ class DataHandler:
         else:
             return None
 
-        return FilmDetails(genres,production_countries,runtime,cast,crew)
+        return FilmDetails(genres,production_countries,runtime,cast,crew,title,release_date)
 
     def insert_person_db(self,credits,cursor):
         people = credits['cast']
@@ -210,8 +225,6 @@ class DataHandler:
 
             if not row:
                 cursor.execute("INSERT INTO person (id, name) VALUES (?,?)",(int(p["id"]),(p["name"])))
-                print(f"{p['name']} has been entered into the db")
-    
         return people
 
     #only needed to run once

@@ -24,9 +24,11 @@ class Person:
 
 
 class FilmDetails:
-    def __init__(self,genres,production_countries,runtime,cast,crew):
+    def __init__(self,genres,production_countries,runtime,cast,crew,title,release_date):
         self.genres = genres
         self.production_countries = production_countries
         self.runtime = runtime
         self.cast = cast
         self.crew = crew
+        self.title = title
+        self.release_date = release_date

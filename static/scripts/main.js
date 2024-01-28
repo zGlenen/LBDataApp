@@ -1,17 +1,23 @@
-document.getElementById('usernameInput').addEventListener('keyup', function(event) {
+function clearInput() {
+    document.getElementById('usernameInput').value = '';
+    document.getElementById('usernameInput').disabled = false;
+    $('#btn_clear').hide();
+}
+
+document.getElementById('usernameInput').addEventListener('keyup', function (event) {
     if (event.key === 'Enter') {
         var username = document.getElementById('usernameInput').value;
-         if (validateInput(username)){
-            run(username)
-         }
+        if (validateInput(username)) {
+            run(username);
+        }
     }
 });
-document.getElementById('usernameInputBtn').addEventListener('click', function() {
-    var username = document.getElementById('usernameInput').value;
-    if (validateInput(username)){
-        run(username)
-     }
 
+document.getElementById('usernameInputBtn').addEventListener('click', function () {
+    var username = document.getElementById('usernameInput').value;
+    if (validateInput(username)) {
+        run(username);
+    }
 });
 
 function validateInput(username) {
@@ -19,39 +25,41 @@ function validateInput(username) {
 
     if (regex.test(username)) {
         document.getElementById('usernameInError').innerText = "";
-        return true
+        return true;
     } else {
         document.getElementById('usernameInError').innerText = "These are not the characters you're looking for.";
-        return false
+        return false;
     }
 }
 
-function run(username){
-    $('#inputScreen').hide()
-    $('#loadingScreen').show()
-    $.ajax({
+function run(input) {
+    $('#inputScreen').hide();
+    $('#loadingScreen').show();
+
+    console.log(input)
+
+    var ajaxOptions = {
         type: 'POST',
         url: '/process',
-        data: { 'username': username },
-        success: function(response) {
-            $('#loadingScreen').hide()
+        data: { 'username': input },
+        contentType: 'application/x-www-form-urlencoded; charset=UTF-8',  // Change content type if not a file
+        processData: true,
+        success: function (response) {
+            $('#loadingScreen').hide();
             display(response);
         },
-        error: function(error) {
-            console.error('Error sending data to Flask:', error);
+        error: function (error) {
+            console.error(`Error `, error);
         }
-    });
+    };
+
+    $.ajax(ajaxOptions);
 }
 
 function display(data) {
-    // Assuming "data" is an array of strings
-    var resultContainer = $('#result-container'); // Assuming you have a container element in your HTML
-
-    console.log(data)
-    // Clear previous content
+    var resultContainer = $('#result-container');
     resultContainer.empty();
 
-    // Iterate through the array and append each string to the container
     for (var i = 0; i < data.length; i++) {
         var listItem = $('<li>').text(data[i].title);
         resultContainer.append(listItem);
