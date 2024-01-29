@@ -6,6 +6,7 @@ class Film():
         self.letterboxd_uri = letterboxd_uri
         self.id = id
         self.details = details
+        
 
     def __str__(self):
         return f"ID: {self.id} {self.title} ({self.year_released}) - {self.letterboxd_uri}"
@@ -24,11 +25,11 @@ class Person:
 
 
 class FilmDetails:
-    def __init__(self,genres,production_countries,runtime,cast,crew,title,release_date):
+    def __init__(self,genres,production_countries,runtime,cast,crew,image_url,rating):
         self.genres = genres
         self.production_countries = production_countries
         self.runtime = runtime
         self.cast = cast
         self.crew = crew
-        self.title = title
-        self.release_date = release_date
+        self.image_url = image_url
+        self.rating = rating

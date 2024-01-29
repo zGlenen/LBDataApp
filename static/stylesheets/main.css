@@ -20,3 +20,9 @@
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
   }
+
+  body {
+    font-size: 24px; /* Adjust the font size as needed */
+    font-style: normal;
+    font-family: monospace;
+  }

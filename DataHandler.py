@@ -15,7 +15,8 @@ class DataHandler:
         self.output_films = []
         self.unreadable_films = []
         self.temp_title = None
-        self.temp_release_year = None
+        self.temp_date = None
+        self.average_rating = 0.0
             
     def check_record_exists(self,url,cursor):
         
@@ -26,8 +27,8 @@ class DataHandler:
         
         if row:
 
-            statement = f"SELECT film.id, film.title, film.release_year, film.letterboxd_url, film.date_added, GROUP_CONCAT(DISTINCT g.name) AS genres, GROUP_CONCAT(DISTINCT fc.country) AS countries, film.runtime FROM film INNER JOIN film_genre AS fg ON film.film_id = fg.film_id INNER JOIN genre AS g ON fg.genre_id = g.id INNER JOIN film_country AS fc ON fc.film_id = film.film_id WHERE film.film_id = ? GROUP BY film.film_id;"
-            cursor.execute(statement, (row[0]))
+            statement = f"SELECT film.id, film.title, film.release_year, film.letterboxd_url, film.date_added, GROUP_CONCAT(DISTINCT g.name) AS genres, GROUP_CONCAT(DISTINCT fc.country) AS countries, film.runtime, film.image, film.rating FROM film INNER JOIN film_genre AS fg ON film.id = fg.film_id INNER JOIN genre AS g ON fg.genre_id = g.id INNER JOIN film_country AS fc ON fc.film_id = film.id WHERE film.id = ? GROUP BY film.id;"
+            cursor.execute(statement, (row[0],))
             row = cursor.fetchone()
 
             id = row[0]
@@ -38,6 +39,8 @@ class DataHandler:
             genres = row[5].split(",")
             production_countries = row[6].split(",")
             runtime = row[7]
+            image_url = row[8]
+            rating = row[9]
             cast = []
             crew = []
             
@@ -59,7 +62,7 @@ class DataHandler:
                 p_job = c[2]
                 crew.append(Person(p_id,p_name,job=p_job))
 
-            self.films.append(Film(date_added,title,release_year,letterboxd_url,id,FilmDetails(genres,production_countries,runtime,cast,crew,title,release_year)))
+            self.films.append(Film(date_added,title,release_year,letterboxd_url,id,FilmDetails(genres,production_countries,runtime,cast,crew,image_url,rating)))
             exists = True  
         
         return exists  
@@ -82,19 +85,20 @@ class DataHandler:
             url = item
             date_added = datetime.now()
 
-            page = requests.get(url)
-            soup = BeautifulSoup(page.content,"html.parser")               
-            span_el = soup.find("span", class_="film-title-wrapper")
-            a_el = span_el.find("a")
-            temp_href = a_el.get("href")
-            url = "https://letterboxd.com" + temp_href
-
             if not self.check_record_exists(url,cursor):                
 
                 page = requests.get(url)
                 soup = BeautifulSoup(page.content,"html.parser")
                 tmdb_link = soup.find("a", {"class": "micro-button track-event", "data-track-action": "TMDb", "target": "_blank"})
-                
+                average_rating_label = soup.find("meta", {"name": "twitter:label2", "content": "Average rating"})
+                if average_rating_label:
+                    next_sibling = average_rating_label.find_next_sibling("meta")
+                    if next_sibling:
+                        average_rating = next_sibling["content"]
+                        average_rating = re.search(r'(\d+\.\d+|\d+)', average_rating)
+                        if average_rating:
+                            self.average_rating = float(average_rating.group(1))
+
                 if tmdb_link:
                     tmdb_url = tmdb_link.get("href")
 
@@ -103,20 +107,15 @@ class DataHandler:
                         details = self.parse_api(tmdb_id,cursor)
 
                         if details:
-                            cursor.execute(f"INSERT INTO film (id, title, release_year, date_added, runtime, letterboxd_url) VALUES (?,?,?,?,?,?)",(tmdb_id, details.title, details.release_date, date_added, details.runtime, url))
+                            cursor.execute(f"INSERT INTO film (id, title, release_year, date_added, runtime, letterboxd_url, image, rating) VALUES (?,?,?,?,?,?,?,?)",(tmdb_id, self.temp_title, self.temp_date, date_added, details.runtime, url, details.image_url,self.average_rating))
                             
                             for g in details.genres:
                                 cursor.execute("INSERT INTO film_genre (film_id, genre_id) VALUES (?,?)",(tmdb_id,int(g.id)))
                             for c in details.production_countries:
                                 cursor.execute("INSERT INTO film_country (film_id, country) VALUES (?,?)",(tmdb_id,c))
 
-###KNOWNBUG
-                            # for p in details.cast:
-                            #     cursor.execute("INSERT INTO film_person_cast (film_id, person_id, character) VALUES (?, ?, ?)", (tmdb_id, p.id, p.character))
-                            # for p in details.crew:
-                            #     cursor.execute("SELECT * FROM film_person_crew WHERE film_id = ? AND person_id = ?", (tmdb_id, p.id))
                             for p in details.cast:
-                                cursor.execute("SELECT * FROM film_person_cast WHERE film_id = ? AND person_id = ?", (tmdb_id, p.id))
+                                cursor.execute("SELECT * FROM film_person_cast WHERE film_id = ? AND person_id = ? AND character = ?", (tmdb_id, p.id, p.character))
                                 existing_record = cursor.fetchone()
                                 
                                 if existing_record is None:
@@ -125,7 +124,7 @@ class DataHandler:
                                     print(f"Record with film_id={tmdb_id} and person_id={p.id} already exists.")
 
                             for p in details.crew:
-                                cursor.execute("SELECT * FROM film_person_crew WHERE film_id = ? AND person_id = ?", (tmdb_id, p.id))
+                                cursor.execute("SELECT * FROM film_person_crew WHERE film_id = ? AND person_id = ? AND job = ?", (tmdb_id, p.id, p.job))
                                 existing_record = cursor.fetchone()
                                 
                                 if existing_record is None:
@@ -135,14 +134,14 @@ class DataHandler:
 
                             
                         
-                            self.films.append(Film(date_added,details.title,details.release_date,url,tmdb_id,details))
+                            self.films.append(Film(date_added,self.temp_title,self.temp_date,url,tmdb_id,details))
                         else:
-                            self.unreadable_films.append(f"{details.title} : {details.release_date} : NOT IN DB")
+                            self.unreadable_films.append(f"{url} : NOT IN DB")
                     else:
                         #not readaable as they are a TV show
-                        self.unreadable_films.append(f"{details.title} : {details.release_date} : TV SHOW")
+                        self.unreadable_films.append(f"{url} : TV SHOW")
                 else:
-                    print(f"{details.title} {details.release_date}: Could Not Find TMDb Link")
+                    print(f"{url}: Could Not Find TMDb Link")
 
         conn.commit()
         conn.close()
@@ -177,11 +176,12 @@ class DataHandler:
     def parse_api(self,id,cursor):
         complete_data_details = self.get_tmdb_film_details(id)
         complete_data_credits = self.get_tmdb_film_credits(id)
-
+        
         if 'success' not in complete_data_details:
             
-            release_date = complete_data_details["release_date"][:4]
-            title = complete_data_details["title"]
+            self.temp_date = complete_data_details["release_date"][:4]
+            self.temp_title = complete_data_details["title"]
+            image_url = complete_data_details["poster_path"]
 
             people = self.insert_person_db(complete_data_credits,cursor)
 
@@ -212,7 +212,7 @@ class DataHandler:
         else:
             return None
 
-        return FilmDetails(genres,production_countries,runtime,cast,crew,title,release_date)
+        return FilmDetails(genres,production_countries,runtime,cast,crew,image_url,self.average_rating)
 
     def insert_person_db(self,credits,cursor):
         people = credits['cast']

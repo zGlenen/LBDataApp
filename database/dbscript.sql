@@ -4,7 +4,7 @@ DROP TABLE IF EXISTS "film_person_cast";
 DROP TABLE IF EXISTS "person";
 DROP TABLE IF EXISTS "film_country";
 DROP TABLE IF EXISTS "film_genre";
-DROP TABLE IF EXISTS "film_common";
+DROP TABLE IF EXISTS "film";
 DROP TABLE IF EXISTS "genre";
 
 -- Create new tables
@@ -19,7 +19,9 @@ CREATE TABLE "film" (
     "release_year"  INTEGER NOT NULL,
     "date_added"    TEXT,
     "letterboxd_url" TEXT,
-    "runtime"       INTEGER NOT NULL
+    "runtime"       INTEGER NOT NULL,
+    "image" TEXT,
+    "rating" FLOAT
 );
 
 
@@ -46,19 +48,21 @@ CREATE TABLE "person" (
 
 
 CREATE TABLE "film_person_cast" (
-    "film_id"   INTEGER,
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "film_id" INTEGER,
     "person_id" INTEGER,
     "character" TEXT NOT NULL,
     FOREIGN KEY("film_id") REFERENCES "film"("id"),
-    FOREIGN KEY("person_id") REFERENCES "person"("id"),
-    PRIMARY KEY("film_id", "person_id")
+    FOREIGN KEY("person_id") REFERENCES "person"("id")
 );
 
+
 CREATE TABLE "film_person_crew" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "film_id" INTEGER,
     "person_id" INTEGER,
     "job" TEXT NOT NULL,
     FOREIGN KEY("film_id") REFERENCES "film"("id"),
-    FOREIGN KEY("person_id") REFERENCES "person"("id"),
-    PRIMARY KEY("film_id", "person_id")
+    FOREIGN KEY("person_id") REFERENCES "person"("id")
 );
+
