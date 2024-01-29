@@ -17,6 +17,7 @@ class DataHandler:
         self.temp_title = None
         self.temp_date = None
         self.average_rating = 0.0
+        self.user_rating = None
             
     def check_record_exists(self,url,cursor):
         
@@ -62,7 +63,7 @@ class DataHandler:
                 p_job = c[2]
                 crew.append(Person(p_id,p_name,job=p_job))
 
-            self.films.append(Film(date_added,title,release_year,letterboxd_url,id,FilmDetails(genres,production_countries,runtime,cast,crew,image_url,rating)))
+            self.films.append(Film(date_added,title,release_year,letterboxd_url,id,FilmDetails(genres,production_countries,runtime,cast,crew,image_url,rating,self.user_rating)))
             exists = True  
         
         return exists  
@@ -82,7 +83,8 @@ class DataHandler:
 
         for item in data:
 
-            url = item
+            url = item[0]
+            self.user_rating = item[1]
             date_added = datetime.now()
 
             if not self.check_record_exists(url,cursor):                
@@ -212,7 +214,7 @@ class DataHandler:
         else:
             return None
 
-        return FilmDetails(genres,production_countries,runtime,cast,crew,image_url,self.average_rating)
+        return FilmDetails(genres,production_countries,runtime,cast,crew,image_url,self.average_rating,self.user_rating)
 
     def insert_person_db(self,credits,cursor):
         people = credits['cast']

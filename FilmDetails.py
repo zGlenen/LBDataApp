@@ -25,7 +25,7 @@ class Person:
 
 
 class FilmDetails:
-    def __init__(self,genres,production_countries,runtime,cast,crew,image_url,rating):
+    def __init__(self,genres,production_countries,runtime,cast,crew,image_url,rating,user_rating):
         self.genres = genres
         self.production_countries = production_countries
         self.runtime = runtime
@@ -33,3 +33,4 @@ class FilmDetails:
         self.crew = crew
         self.image_url = image_url
         self.rating = rating
+        self.user_rating = user_rating

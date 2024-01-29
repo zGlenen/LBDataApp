@@ -19,26 +19,48 @@
       <li><a class="dropdown-item" href="?sorting_option=year_earliest">Year Earliest</a></li>
       <li><a class="dropdown-item" href="?sorting_option=rating_highest">Rating Highest</a></li>
       <li><a class="dropdown-item" href="?sorting_option=rating_lowest">Rating Lowest</a></li>
+      <li><a class="dropdown-item" href="?sorting_option=user_rating_highest">User Rating Highest</a></li>
+      <li><a class="dropdown-item" href="?sorting_option=user_rating_lowest">User Rating Lowest</a></li>
       <li><a class="dropdown-item" href="?sorting_option=longest">Longest</a></li>
       <li><a class="dropdown-item" href="?sorting_option=shortest">Shortest</a></li>
 
+    </ul>
+  </div>
+  <div class="dropdown">
+    <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton2" data-bs-toggle="dropdown" aria-expanded="false">
+      Rating
+    </button>
+    <ul class="dropdown-menu dropdown-menu-dark" aria-labelledby="dropdownMenuButton2">
+      <li><a class="dropdown-item" href="?rating_option=0">Not Rated</a></li>
+      <li><a class="dropdown-item" href="?rating_option=1">½</a></li>
+      <li><a class="dropdown-item" href="?rating_option=2">★</a></li>
+      <li><a class="dropdown-item" href="?rating_option=3">★½</a></li>
+      <li><a class="dropdown-item" href="?rating_option=4">★★</a></li>
+      <li><a class="dropdown-item" href="?rating_option=5">★★½</a></li>
+      <li><a class="dropdown-item" href="?rating_option=6">★★★</a></li>
+      <li><a class="dropdown-item" href="?rating_option=7">★★★½</a></li>
+      <li><a class="dropdown-item" href="?rating_option=8">★★★★</a></li>
+      <li><a class="dropdown-item" href="?rating_option=9">★★★★½</a></li>
+      <li><a class="dropdown-item" href="?rating_option=10">★★★★★</a></li>
     </ul>
   </div>
   <table class="table table-dark table-sm w-auto mx-auto">
       <thead>
           <tr>
               <th scope="col">Title</th>
+              <th scope="col">Your Rating</th>
               <th scope="col">Release Year</th>
               <th scope="col">Runtime</th>
               <th scope="col">Director</th>
               <th scope="col">Poster</th>
-              <th scope="col">Rating</th>
+              <th scope="col">Average Rating</th>
           </tr>
       </thead>
       <tbody>
           {% for film in films %}
           <tr>
               <td class="align-middle">{{ film.title }}</td>
+              <td class="align-middle">{{ film.details.user_rating }}</td>
               <td class="align-middle">{{ film.year_released }}</td>
               <td class="align-middle">{{ film.details.runtime }}</td>
               <td class="align-middle">

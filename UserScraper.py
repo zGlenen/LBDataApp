@@ -22,7 +22,9 @@ class UserScraper:
             for li in li_elements:
                 div_element = li.find('div', class_='really-lazy-load',)
                 name = div_element.get('data-film-slug')
-                films.append(name)
+                rating_span = li.find('span', class_='rating')
+                rating = rating_span.get_text(strip=True) if rating_span else None
+                films.append((name,rating))
 
         return films
 
@@ -35,4 +37,9 @@ class UserScraper:
         return int(last_page_element.text) if last_page_element else 1
 
     def get_uris(self, films):
-        return [f"{self.base_url}film/{slug}/" for slug in films]
+
+        x = []
+        for slug, rating in films:
+            slug = f"{self.base_url}film/{slug}/"
+            x.append((slug,rating))
+        return x
