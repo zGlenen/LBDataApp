@@ -60,20 +60,26 @@ def films():
     if not output_data:
         return render_template('error.html')
     
+    sorting_option = request.args.get('sorting_option', default='year_latest', type=str)
+    sorted_films = get_sorted_films(filtered_films if filtered_films else output_data,sorting_option)
+    
     filter_options = request.args
     filtered_films = get_filtered_films(output_data,filter_options)
 
-    sorting_option = request.args.get('sorting_option', default='year_latest', type=str)
-    sorted_films = get_sorted_films(sorting_option)
+    
 
     page = request.args.get(get_page_parameter(), type=int, default=1)
     per_page = 20  # Number of films per page
     offset = (page - 1) * per_page
-    paginated_films = sorted_films[offset: offset + per_page]
+    if filtered_films:
+        paginated_films = filtered_films[offset: offset + per_page]
+    else:
+        paginated_films = sorted_films[offset: offset + per_page]
 
-    pagination = Pagination(page=page, total=len(sorted_films), per_page=per_page, css_framework='bootstrap')
 
-    return render_template('films.html', films=paginated_films, pagination=pagination)
+    pagination = Pagination(page=page, total=len(filtered_films if filtered_films else sorted_films), per_page=per_page, css_framework='bootstrap')
+
+    return render_template('films.html', films=paginated_films, pagination=pagination, og_films=output_data)
 
 def get_filtered_films(data, filter_options):
     global filtered_films
@@ -82,9 +88,14 @@ def get_filtered_films(data, filter_options):
         filtered_films_2 = []
         filtered_films_3 = []
         filtered_films_4 = []
+        filtered_films_5 = []
+        filtered_films_6 = []
+        filtered_films_7 = []
         hasUserRating = False
         hasAvgRating = False
         hasDec = False
+        hasRun = False
+        hasGen = False
         for i in filter_options:
             if i.startswith("user"):
                 filtered_films.extend(get_filtered_rating_films(data, i.split("_")[-1]))
@@ -125,6 +136,79 @@ def get_filtered_films(data, filter_options):
                         filtered_films_4 = get_filtered_year(filtered_films_3,year)
                         if not filtered_films_4:
                             return []
+            elif i.startswith("run"):
+                
+                if filtered_films_4:
+                    dataToUse = filtered_films_4
+                elif filtered_films_3:
+                    dataToUse = filtered_films_3
+                elif filtered_films_2:
+                    dataToUse = filtered_films_2
+                elif filtered_films:
+                    dataToUse = filtered_films
+                else:
+                    dataToUse = data
+                
+                if not hasRun:
+                    filtered_films_5 = get_filtered_runtime(dataToUse,i.split("_")[1])
+                    hasRun = True
+                    if not filtered_films_5:
+                        return []
+                else:
+                    filtered_films_5.extend(get_filtered_runtime(dataToUse,i.split("_")[1]))
+                    if not filtered_films_5:
+                        return []
+            elif i.startswith("gen"):
+                if filtered_films_6:
+                    dataToUse = filtered_films_6
+                elif filtered_films_5:
+                    dataToUse = filtered_films_5
+                elif filtered_films_4:
+                    dataToUse = filtered_films_4
+                elif filtered_films_3:
+                    dataToUse = filtered_films_3
+                elif filtered_films_2:
+                    dataToUse = filtered_films_2
+                elif filtered_films:
+                    dataToUse = filtered_films
+                else:
+                    dataToUse = data
+
+                
+                filtered_films_6 = get_filtered_genre(dataToUse,i.split("_")[1]) 
+                if not filtered_films_6:
+                        return []
+            elif i.startswith("country"):
+                if filtered_films_7:
+                    dataToUse = filtered_films_7
+                elif filtered_films_6:
+                    dataToUse = filtered_films_6
+                elif filtered_films_5:
+                    dataToUse = filtered_films_5
+                elif filtered_films_4:
+                    dataToUse = filtered_films_4
+                elif filtered_films_3:
+                    dataToUse = filtered_films_3
+                elif filtered_films_2:
+                    dataToUse = filtered_films_2
+                elif filtered_films:
+                    dataToUse = filtered_films
+                else:
+                    dataToUse = data
+
+                filtered_films_7 = get_filtered_country(dataToUse,i.split("_")[1])
+                if not filtered_films_7:
+                        return []
+
+        if filtered_films_7:
+            filtered_films_7 = list(set(filtered_films_7))
+            return filtered_films_7
+        if filtered_films_6:
+            filtered_films_6 = list(set(filtered_films_6))
+            return filtered_films_6
+        if filtered_films_5:
+            filtered_films_5 = list(set(filtered_films_5))
+            return filtered_films_5
         if filtered_films_4:
             filtered_films_4 = list(set(filtered_films_4))
             return filtered_films_4
@@ -141,6 +225,26 @@ def get_filtered_films(data, filter_options):
     else:
         return data
     
+def get_filtered_country(data,country):
+    filtered_films = [film for film in data if country in film.details.production_countries]
+    return filtered_films
+
+def get_filtered_genre(data,genre):
+    filtered_films = [film for film in data if genre in film.details.genres]
+    return filtered_films
+
+def get_filtered_runtime(data,time):
+    time = int(time)
+    if time == 120:
+        toptime = time + 60
+    elif time == 180:
+        toptime = 10000
+    else:
+        toptime = time + 30
+
+    filtered_films = [film for film in data if toptime > int(film.details.runtime) >= time ]
+    return filtered_films
+
 def get_filtered_year(data,year):
     filtered_films = [film for film in data if year == film.year_released ]
     return filtered_films
@@ -154,15 +258,7 @@ def get_filtered_decade(data,decade_option):
     filtered_films = [film for film in data if decade_start <= film.year_released <= decade_end]
     return filtered_films
 
-def get_sorted_films(sorting_option):
-    global filtered_films
-    global output_data
-
-    f = []
-
-    if filtered_films:
-        f = filtered_films
-
+def get_sorted_films(f,sorting_option):
     if sorting_option == 'year_latest':
         sorted_films = sorted(f, key=lambda film: film.year_released, reverse=True)
     elif sorting_option == 'year_earliest':
@@ -234,7 +330,6 @@ def get_filtered_avg_rating_films(data, avg_rating_option):
 
     return filtered_films
 
-
 def convert_star_rating_to_numeric(star_rating):
     # Count the number of stars
     if star_rating:
@@ -249,7 +344,6 @@ def convert_star_rating_to_numeric(star_rating):
 
 def sort_by_user_rating(films, reverse=False):
     return sorted(films, key=lambda film: convert_star_rating_to_numeric(film.details.user_rating), reverse=reverse)
-
 
 def serialize_films(film):
     return {

@@ -38,12 +38,12 @@
 <div class="text-center">
   <div class="row">
     <div class="col-sm-8">
-      <div class="dropdown ">
+      <div class="dropdown">
         <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownfilter" data-bs-auto-close="outside" data-bs-toggle="dropdown" aria-expanded="false">
           Filter
         </button>
-        <ul class="dropdown-menu dropdown-menu-dark p-2 m-2" id="ulfilter" aria-labelledby="dropdownMenuButton2">
-          <div class="row">
+        <ul class="dropdown-menu dropdown-menu-dark" id="ulfilter" aria-labelledby="dropdownMenuButton2">
+          <div class="row p-2 m-2">
             <div class="col">
               <li class="dropdown-header">Your Rating</li>
               <li><input type="checkbox" value="user_0" />Not Rated</li>
@@ -100,32 +100,66 @@
               <li><input type="checkbox" value="year_8"/>8</a></li>
               <li><input type="checkbox" value="year_9"/>9</a></li>
             </div>
+            <div class="col">
+              <li class="dropdown-header">Runtime</li>
+              <li><input type="checkbox" value="run_0"/>Less than 30</a></li>
+              <li><input type="checkbox" value="run_30"/>30 - 60</a></li>
+              <li><input type="checkbox" value="run_60"/>60 - 90</a></li>
+              <li><input type="checkbox" value="run_90"/>90 - 120</a></li>
+              <li><input type="checkbox" value="run_120"/>120 - 180</a></li>
+              <li><input type="checkbox" value="run_180"/>180+</a></li>
+            </div>
+            <div class="col">
+              <li class="dropdown-header">Genre</li>
+              {% set unique_genres = [] %}
+              {% for film in og_films %}
+                {% for genre in film.details.genres %}
+                  {% if genre not in unique_genres %}
+                    <li><input type="checkbox" value="gen_{{ genre }}"/>{{ genre }}</a></li>
+                    {% set _ = unique_genres.append(genre) %}
+                  {% endif %}
+                {% endfor %}
+              {% endfor %}
+            </div>
+            <div class="col">
+              <li class="dropdown-header">Countries</li>
+              {% set unique_countries = [] %}
+              {% for film in og_films %}
+                {% for country in film.details.production_countries %}
+                  {% if country not in unique_countries %}
+                    <li><input type="checkbox" value="country_{{ country }}"/>{{ country }}</a></li>
+                    {% set _ = unique_countries.append(country) %}
+                  {% endif %}
+                {% endfor %}
+              {% endfor %}
           </div>
           
           
-          <li class="dropdown-divider"></li>
-          <li><a class="btn btn-secondary" id="getEmBtn" type="button" href="#" aria-expanded="false">Get 'Em</a></li>
+          <li class=" row dropdown-divider"></li>
+          <div class="row">
+            <li><a class="btn btn-secondary" id="getEmBtn" type="button" href="#" aria-expanded="false">Get 'Em</a></li>
+          </div>
         </ul>
       </div>
+    </div>
+    <div class="col-sm-4">
+      <div class="dropdown float-start">
+        <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton2" data-bs-auto-close="outside" data-bs-toggle="dropdown" aria-expanded="false">
+          Sort
+        </button>
+        <ul class="dropdown-menu dropdown-menu-dark" aria-labelledby="dropdownMenuButton2">
+          <li><a class="dropdown-item" href="?sorting_option=year_latest">Year Latest</a></li>
+          <li><a class="dropdown-item" href="?sorting_option=year_earliest">Year Earliest</a></li>
+          <li><a class="dropdown-item" href="?sorting_option=rating_highest">Rating Highest</a></li>
+          <li><a class="dropdown-item" href="?sorting_option=rating_lowest">Rating Lowest</a></li>
+          <li><a class="dropdown-item" href="?sorting_option=user_rating_highest">User Rating Highest</a></li>
+          <li><a class="dropdown-item" href="?sorting_option=user_rating_lowest">User Rating Lowest</a></li>
+          <li><a class="dropdown-item" href="?sorting_option=longest">Longest</a></li>
+          <li><a class="dropdown-item" href="?sorting_option=shortest">Shortest</a></li>
+    
+        </ul>
       </div>
-      <div class="col-sm-4">
-        <div class="dropdown">
-          <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton2" data-bs-auto-close="outside" data-bs-toggle="dropdown" aria-expanded="false">
-            Sort
-          </button>
-          <ul class="dropdown-menu dropdown-menu-dark" aria-labelledby="dropdownMenuButton2">
-            <li><a class="dropdown-item" href="?sorting_option=year_latest">Year Latest</a></li>
-            <li><a class="dropdown-item" href="?sorting_option=year_earliest">Year Earliest</a></li>
-            <li><a class="dropdown-item" href="?sorting_option=rating_highest">Rating Highest</a></li>
-            <li><a class="dropdown-item" href="?sorting_option=rating_lowest">Rating Lowest</a></li>
-            <li><a class="dropdown-item" href="?sorting_option=user_rating_highest">User Rating Highest</a></li>
-            <li><a class="dropdown-item" href="?sorting_option=user_rating_lowest">User Rating Lowest</a></li>
-            <li><a class="dropdown-item" href="?sorting_option=longest">Longest</a></li>
-            <li><a class="dropdown-item" href="?sorting_option=shortest">Shortest</a></li>
-      
-          </ul>
-        </div>
-      </div>
+    </div>
   </div>
 
   <table class="table table-dark table-sm w-auto mx-auto">
@@ -237,6 +271,8 @@
       window.location.href = url;
   });
   document.getElementById('navbar').style.display = 'block';
+
+  
 
 </script>
    
