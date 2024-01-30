@@ -8,6 +8,7 @@ from DataHandler import DataHandler
 
 app = Flask(__name__)
 output_data = []
+filtered_films = []
 
 @app.route('/')
 def index():
@@ -36,6 +37,8 @@ def process():
     data_handler.scrape_data(letterboxd_urls)
     global output_data 
     output_data = data_handler.films
+    global filtered_films
+    filtered_films = []
     #films_json = jsonify([serialize_films(film) for film in data_handler.films])
     
     return jsonify(True)
@@ -52,46 +55,133 @@ def dashboard():
 @app.route('/films')
 def films():
     global output_data
+    global filtered_films
 
     if not output_data:
         return render_template('error.html')
     
-    sorting_option = request.args.get('sorting_option', default='year_latest', type=str)
-    sorted_films = get_sorted_films(output_data,sorting_option)
+    filter_options = request.args
+    filtered_films = get_filtered_films(output_data,filter_options)
 
-    filter_option_rating = request.args.get('rating_option', default='any', type=str)
-    filtered_films = get_filtered_rating_films(sorted_films,filter_option_rating)
+    sorting_option = request.args.get('sorting_option', default='year_latest', type=str)
+    sorted_films = get_sorted_films(sorting_option)
 
     page = request.args.get(get_page_parameter(), type=int, default=1)
     per_page = 20  # Number of films per page
     offset = (page - 1) * per_page
-    paginated_films = filtered_films[offset: offset + per_page]
+    paginated_films = sorted_films[offset: offset + per_page]
 
-    pagination = Pagination(page=page, total=len(filtered_films), per_page=per_page, css_framework='bootstrap')
+    pagination = Pagination(page=page, total=len(sorted_films), per_page=per_page, css_framework='bootstrap')
 
     return render_template('films.html', films=paginated_films, pagination=pagination)
 
-def get_sorted_films(data,sorting_option):
+def get_filtered_films(data, filter_options):
+    global filtered_films
+    if filter_options:
+        filtered_films = []
+        filtered_films_2 = []
+        filtered_films_3 = []
+        filtered_films_4 = []
+        hasUserRating = False
+        hasAvgRating = False
+        hasDec = False
+        for i in filter_options:
+            if i.startswith("user"):
+                filtered_films.extend(get_filtered_rating_films(data, i.split("_")[-1]))
+                hasUserRating = True
+            elif i.startswith("avg"):
+                if hasUserRating and not hasAvgRating:
+                    filtered_films_2 = (get_filtered_avg_rating_films((filtered_films), i.split("_")[-1]))
+                    if not filtered_films_2:
+                            return []
+                else:
+                    filtered_films_2.extend(get_filtered_avg_rating_films((data if not hasUserRating else filtered_films), i.split("_")[-1]))
+                    if not filtered_films_2:
+                            return []
+                hasAvgRating = True
+            elif i.startswith("dec"):
+                if filtered_films_2:
+                    x = filtered_films_2
+                elif filtered_films:
+                    x = filtered_films
+                else:
+                    x = data
+
+                if not hasDec:
+                    filtered_films_3 = get_filtered_decade(x,i.split("_")[1])
+                    hasDec = True
+                    if not filtered_films_3:
+                            return []
+                else:
+                    filtered_films_3.extend(get_filtered_decade(x,i.split("_")[1]))
+                    if not filtered_films_3:
+                            return []
+            elif i.startswith("year"):
+                #get the decade and add the year to it
+                for j in filter_options:
+                    if j.startswith("dec"):
+                        year = int(j.split("_")[1]) + int(i.split("_")[-1])
+
+                        filtered_films_4 = get_filtered_year(filtered_films_3,year)
+                        if not filtered_films_4:
+                            return []
+        if filtered_films_4:
+            filtered_films_4 = list(set(filtered_films_4))
+            return filtered_films_4
+        if filtered_films_3:
+            filtered_films_3 = list(set(filtered_films_3))
+            return filtered_films_3
+        elif filtered_films_2:
+            filtered_films_2 = list(set(filtered_films_2))
+            return filtered_films_2
+        else:
+            filtered_films = list(set(filtered_films))
+            
+            return filtered_films
+    else:
+        return data
     
+def get_filtered_year(data,year):
+    filtered_films = [film for film in data if year == film.year_released ]
+    return filtered_films
+
+def get_filtered_decade(data,decade_option):
+    decade_start = int(decade_option)
+    if decade_start == 1800:
+        decade_end = 1899
+    else:
+        decade_end = decade_start + 9
+    filtered_films = [film for film in data if decade_start <= film.year_released <= decade_end]
+    return filtered_films
+
+def get_sorted_films(sorting_option):
+    global filtered_films
+    global output_data
+
+    f = []
+
+    if filtered_films:
+        f = filtered_films
+
     if sorting_option == 'year_latest':
-        sorted_films = sorted(data, key=lambda film: film.year_released, reverse=True)
+        sorted_films = sorted(f, key=lambda film: film.year_released, reverse=True)
     elif sorting_option == 'year_earliest':
-        sorted_films = sorted(data, key=lambda film: film.year_released)
+        sorted_films = sorted(f, key=lambda film: film.year_released)
     elif sorting_option == 'rating_highest':
-        sorted_films = sorted(data, key=lambda film: film.details.rating, reverse=True)
+        sorted_films = sorted(f, key=lambda film: film.details.rating, reverse=True)
     elif sorting_option == 'rating_lowest':
-        sorted_films = sorted(data, key=lambda film: film.details.rating)
+        sorted_films = sorted(f, key=lambda film: film.details.rating)
     elif sorting_option == 'user_rating_highest':
-        sorted_films = sort_by_user_rating(data, reverse=True)
+        sorted_films = sort_by_user_rating(f, reverse=True)
     elif sorting_option == 'user_rating_lowest':
-        sorted_films = sort_by_user_rating(data)
+        sorted_films = sort_by_user_rating(f)
     elif sorting_option == 'longest':
-        sorted_films = sorted(data, key=lambda film: film.details.runtime, reverse=True)
+        sorted_films = sorted(f, key=lambda film: film.details.runtime, reverse=True)
     elif sorting_option == 'shortest':
-        sorted_films = sorted(data, key=lambda film: film.details.runtime)
+        sorted_films = sorted(f, key=lambda film: film.details.runtime)
     else:
         # Default sorting option
-        sorted_films = data
+        sorted_films = f
 
     return sorted_films
 
@@ -124,6 +214,26 @@ def get_filtered_rating_films(data,rating_option):
         filtered_films = data
 
     return filtered_films
+
+def get_filtered_avg_rating_films(data, avg_rating_option):
+    if avg_rating_option == 'any':
+        return data
+    
+    avg_rating_option = float(avg_rating_option) / 2  # Convert to float if it's not already
+    upper_bound = avg_rating_option + 0.49  # Calculate the upper bound of the range
+
+    if avg_rating_option == 0:
+        filtered_films = [film for film in data if 0 <= film.details.rating < 0.5]
+    elif 0.5 <= avg_rating_option < 5:
+        filtered_films = [film for film in data if avg_rating_option <= film.details.rating < upper_bound]
+    elif avg_rating_option == 5:
+        filtered_films = [film for film in data if 4.5 <= film.details.rating <= 5]
+    else:
+        # Default option
+        filtered_films = data
+
+    return filtered_films
+
 
 def convert_star_rating_to_numeric(star_rating):
     # Count the number of stars
