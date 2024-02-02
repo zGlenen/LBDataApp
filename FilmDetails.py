@@ -17,11 +17,12 @@ class Genre:
         self.name = name
 
 class Person:
-    def __init__(self,id,name,job=None,character=None):
+    def __init__(self,id,name,job=None,character=None,p_image=None):
         self.id = id
         self.name = name
         self.job = job
         self.character = character
+        self.image = p_image
 
 
 class FilmDetails:

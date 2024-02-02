@@ -43,6 +43,7 @@ CREATE TABLE "film_country" (
 CREATE TABLE "person" (
 	"id"	INTEGER NOT NULL,
 	"name"	TEXT NOT NULL,
+    "image" TEXT,
 	PRIMARY KEY("id")
 );
 

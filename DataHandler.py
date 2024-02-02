@@ -18,6 +18,8 @@ class DataHandler:
         self.temp_date = None
         self.average_rating = 0.0
         self.user_rating = None
+        self.diary = []
+        self.watchlist = []
             
     def check_record_exists(self,url,cursor):
         
@@ -45,23 +47,25 @@ class DataHandler:
             cast = []
             crew = []
             
-            statement = "SELECT pcast.person_id, p.name, pcast.character FROM film_person_cast AS pcast INNER JOIN person AS p ON pcast.person_id = p.id WHERE film_id = ? "
+            statement = "SELECT pcast.person_id, p.name, pcast.character, p.image FROM film_person_cast AS pcast INNER JOIN person AS p ON pcast.person_id = p.id WHERE film_id = ? "
             cursor.execute(statement, (id,))
             cast_row = cursor.fetchall()
             for c in cast_row:
                 p_id = c[0]
                 p_name = c[1]
                 p_character = c[2]
-                cast.append(Person(p_id,p_name,character=p_character))
+                p_image = c[3]
+                cast.append(Person(p_id,p_name,character=p_character,p_image=p_image))
 
-            statement = "SELECT pcrew.person_id, p.name, pcrew.job FROM film_person_crew AS pcrew INNER JOIN person AS p ON pcrew.person_id = p.id WHERE film_id = ?"
+            statement = "SELECT pcrew.person_id, p.name, pcrew.job, p.image FROM film_person_crew AS pcrew INNER JOIN person AS p ON pcrew.person_id = p.id WHERE film_id = ?"
             cursor.execute(statement, (id,))
             crew_row = cursor.fetchall()
             for c in crew_row:
                 p_id = c[0]
                 p_name = c[1]
                 p_job = c[2]
-                crew.append(Person(p_id,p_name,job=p_job))
+                p_image = c[3]
+                crew.append(Person(p_id,p_name,job=p_job,p_image=p_image))
 
             self.films.append(Film(date_added,title,release_year,letterboxd_url,id,FilmDetails(genres,production_countries,runtime,cast,crew,image_url,rating,self.user_rating)))
             exists = True  
@@ -137,6 +141,8 @@ class DataHandler:
                             
                         
                             self.films.append(Film(date_added,self.temp_title,self.temp_date,url,tmdb_id,details))
+                            conn.commit()
+                        
                         else:
                             self.unreadable_films.append(f"{url} : NOT IN DB")
                     else:
@@ -144,10 +150,8 @@ class DataHandler:
                         self.unreadable_films.append(f"{url} : TV SHOW")
                 else:
                     print(f"{url}: Could Not Find TMDb Link")
-
-        conn.commit()
         conn.close()
-    
+
     #Get general details from api
     def get_tmdb_film_details(self,id):
         url = "https://api.themoviedb.org/3/movie/" + str(id)+ "?language=en-US"
@@ -205,12 +209,13 @@ class DataHandler:
             for p in people:
                 p_id = p["id"]
                 p_name = p["name"]
+                p_image = p["profile_path"]
                 if "character" in p:
                     p_character = p["character"]
-                    cast.append(Person(p_id,p_name,character=p_character))
+                    cast.append(Person(p_id,p_name,character=p_character,p_image=p_image))
                 else:
                     p_job = p["job"]
-                    crew.append(Person(p_id,p_name,job=p_job))
+                    crew.append(Person(p_id,p_name,job=p_job,p_image=p_image))
         else:
             return None
 
@@ -224,9 +229,8 @@ class DataHandler:
             statement = "SELECT * from person WHERE person.id = ?"
             cursor.execute(statement, (p["id"],))
             row = cursor.fetchone()
-
             if not row:
-                cursor.execute("INSERT INTO person (id, name) VALUES (?,?)",(int(p["id"]),(p["name"])))
+                cursor.execute("INSERT INTO person (id, name, image) VALUES (?,?,?)",(int(p["id"]),(p["name"]),(str(p["profile_path"]))))
         return people
 
     #only needed to run once
@@ -256,3 +260,44 @@ class DataHandler:
                        
         conn.commit()
         conn.close()
+
+    def get_people_for_search(self,category):
+        people_map = {}
+
+        for f in self.films:
+            if category == 'cast':
+                people = f.details.cast
+            elif category == 'crew':
+                people = f.details.crew
+            else:
+                raise ValueError("Invalid category provided. Must be 'cast' or 'crew'.")
+
+            for p in people:
+                key = p.id
+                if key not in people_map:
+                    people_map[key] = {
+                        'id': p.id,
+                        'name': p.name,
+                        'image': p.image,
+                        'films': {},
+                    }
+                if f.title not in people_map[key]['films']:
+                    people_map[key]['films'][f.title] = {
+                        'title': f.title,
+                        'jobs': [],
+                        'characters': [],
+                        'image': f.details.image_url
+                    }
+                if category == 'cast':
+                    people_map[key]['films'][f.title]['characters'].append(p.character)
+                elif category == 'crew':
+                    people_map[key]['films'][f.title]['jobs'].append(p.job)
+
+        people_list = []
+        for person_id, person_data in people_map.items():
+            person_data['films'] = list(person_data['films'].values())
+            people_list.append(person_data)
+
+        return people_list
+
+    

@@ -7,8 +7,12 @@ from DataHandler import DataHandler
 
 
 app = Flask(__name__)
-output_data = []
+output_data_for_films = []
+output_data_for_cast = []
+output_data_for_crew = []
+output_data_for_dashboard = {}
 filtered_films = []
+is_filtered = False
 
 @app.route('/')
 def index():
@@ -31,58 +35,208 @@ def process():
 
     data_handler.insert_genre_db()
 
-    
     films = scraper.scrape_user(data)
     letterboxd_urls = scraper.get_uris(films)
     data_handler.scrape_data(letterboxd_urls)
-    global output_data 
-    output_data = data_handler.films
-    global filtered_films
-    filtered_films = []
-    #films_json = jsonify([serialize_films(film) for film in data_handler.films])
+    global output_data_for_films 
+    output_data_for_films = data_handler.films
+    global output_data_for_cast
+    global output_data_for_crew
+    output_data_for_cast = data_handler.get_people_for_search("cast")
+    output_data_for_crew = data_handler.get_people_for_search("crew")
+
     
     return jsonify(True)
 
 @app.route('/dashboard')
 def dashboard():
-    global output_data
+    global output_data_for_films
+    global output_data_for_dashboard
+    global output_data_for_cast
 
-    if not output_data:
+    if not output_data_for_films:
         return render_template('error.html')
     
-    return render_template('dashboard.html',films=output_data)
+    output_data_for_dashboard['totalFilms'] = len(output_data_for_films) 
+    output_data_for_dashboard['totalRuntime'] = get_total_runtime(output_data_for_films)
+    output_data_for_dashboard['totalGenreCount'] = get_total_genre_count(output_data_for_films)
+    output_data_for_dashboard['totalDecadeCount'] = get_total_decade_count(output_data_for_films)
+    output_data_for_dashboard['totalAvgRatingCount'] = get_total_avg_rating_count(output_data_for_films)
+    output_data_for_dashboard['totalRatingCount'] = get_total_rating_count(output_data_for_films)
+    output_data_for_dashboard['totalYearCount'] = get_total_year_count(output_data_for_films)
+    output_data_for_dashboard['totalRuntimeCount'] = get_total_runtime_count(output_data_for_films)
+    output_data_for_dashboard['totalCountryCount'] = get_total_country_count(output_data_for_films)
+    # output_data_for_dashboard['totalActorCount'] = get_total_actor_count(output_data_for_cast) OVER MAX CAP?????????
+
+    return render_template('dashboard.html',data=output_data_for_dashboard)
+
+@app.route('/people_search')
+def people_search():
+    global output_data_for_people
+
+    if not output_data_for_films:
+        return render_template('error.html')
+    
+    return render_template('people_search.html',people=output_data_for_people)
 
 @app.route('/films')
 def films():
-    global output_data
+    global output_data_for_films
     global filtered_films
+    global is_filtered
 
-    if not output_data:
+    if not output_data_for_films:
         return render_template('error.html')
     
     sorting_option = request.args.get('sorting_option', default='year_latest', type=str)
-    sorted_films = get_sorted_films(filtered_films if filtered_films else output_data,sorting_option)
+    sorted_films = get_sorted_films(filtered_films if filtered_films else output_data_for_films,sorting_option)
     
     filter_options = request.args
-    filtered_films = get_filtered_films(output_data,filter_options)
+    filtered_films = get_filtered_films(output_data_for_films,filter_options)
 
     
 
     page = request.args.get(get_page_parameter(), type=int, default=1)
     per_page = 20  # Number of films per page
     offset = (page - 1) * per_page
-    if filtered_films:
+    if is_filtered:
         paginated_films = filtered_films[offset: offset + per_page]
     else:
         paginated_films = sorted_films[offset: offset + per_page]
 
 
-    pagination = Pagination(page=page, total=len(filtered_films if filtered_films else sorted_films), per_page=per_page, css_framework='bootstrap')
+    pagination = Pagination(page=page, total=len(filtered_films if is_filtered else sorted_films), per_page=per_page, css_framework='bootstrap')
 
-    return render_template('films.html', films=paginated_films, pagination=pagination, og_films=output_data)
+    return render_template('films.html', films=paginated_films, pagination=pagination, og_films=output_data_for_films)
+
+def get_total_actor_count(data):
+    actor_count = {}
+
+    for person in data:
+        if person['name'] in actor_count:
+            actor_count[person['name']] += 1
+        else:
+            actor_count[person['name']] = 1
+
+    sorted_actor_count = dict(sorted(actor_count.items(), key=lambda x: x[1], reverse=True))
+
+    return actor_count
+
+def get_total_country_count(data):
+    country_count = {}
+
+    for film in data:
+        for c in film.details.production_countries:
+            if c in country_count:
+                country_count[c] += 1
+            else:
+                country_count[c] = 1
+
+    return country_count
+
+def get_total_runtime_count(data):
+    runtime_count = {}
+
+    for film in data:
+        if str(film.details.runtime) in runtime_count:
+            runtime_count[str(film.details.runtime)] += 1
+        else:
+            runtime_count[str(film.details.runtime)] = 1
+    
+    return runtime_count
+
+def get_total_year_count(data):
+    year_count = {}
+
+    for film in data:
+        if str(film.year_released) in year_count:
+            year_count[str(film.year_released)] += 1
+        else:
+            year_count[str(film.year_released)] = 1
+    
+    return year_count
+
+def get_total_avg_rating_count(data):
+    rating_count = {}
+
+    for film in data:
+        if str(film.details.rating) in rating_count:
+            rating_count[str(film.details.rating)] += 1
+        else:
+            rating_count[str(film.details.rating)] = 1
+
+    return rating_count
+
+def get_total_rating_count(data):
+    rating_count = {}
+
+    for film in data:
+        if film.details.user_rating in rating_count:
+            rating_count[film.details.user_rating] += 1
+        else:
+            rating_count[film.details.user_rating] = 1
+
+    return rating_count
+
+def get_total_decade_count(data):
+    decade_count = {}
+    decade = 0
+    for film in data:
+        if str(film.year_released).startswith('202'):
+            decade = 2020
+        elif str(film.year_released).startswith('201'):
+            decade = 2010
+        elif str(film.year_released).startswith('200'):
+            decade = 2000
+        elif str(film.year_released).startswith('199'):
+            decade = 1990
+        elif str(film.year_released).startswith('198'):
+            decade = 1980
+        elif str(film.year_released).startswith('197'):
+            decade = 1970
+        elif str(film.year_released).startswith('196'):
+            decade = 1960
+        elif str(film.year_released).startswith('195'):
+            decade = 1950
+        elif str(film.year_released).startswith('194'):
+            decade = 1940
+        elif str(film.year_released).startswith('193'):
+            decade = 1930
+        elif str(film.year_released).startswith('192'):
+            decade = 1920
+        elif str(film.year_released).startswith('191'):
+            decade = 1910
+        elif str(film.year_released).startswith('190'):
+            decade = 1900
+        elif str(film.year_released).startswith('18'):
+            decade = 1800
+
+        if str(decade) in decade_count:
+            decade_count[str(decade)] += 1
+        else:
+            decade_count[str(decade)] = 1
+    
+    return decade_count
+
+def get_total_genre_count(data):
+    genre_count = {}
+    for film in data:
+        for g in film.details.genres:
+            if g in genre_count:
+                genre_count[g] += 1
+            else:
+                genre_count[g] = 1
+    return genre_count
+
+def get_total_runtime(output_data_for_films):
+    total = 0
+    for f in output_data_for_films:
+        total += f.details.runtime
+    return total
 
 def get_filtered_films(data, filter_options):
     global filtered_films
+    global is_filtered
     if filter_options:
         filtered_films = []
         filtered_films_2 = []
@@ -98,9 +252,11 @@ def get_filtered_films(data, filter_options):
         hasGen = False
         for i in filter_options:
             if i.startswith("user"):
+                is_filtered = True
                 filtered_films.extend(get_filtered_rating_films(data, i.split("_")[-1]))
                 hasUserRating = True
             elif i.startswith("avg"):
+                is_filtered = True
                 if hasUserRating and not hasAvgRating:
                     filtered_films_2 = (get_filtered_avg_rating_films((filtered_films), i.split("_")[-1]))
                     if not filtered_films_2:
@@ -111,6 +267,7 @@ def get_filtered_films(data, filter_options):
                             return []
                 hasAvgRating = True
             elif i.startswith("dec"):
+                is_filtered = True
                 if filtered_films_2:
                     x = filtered_films_2
                 elif filtered_films:
@@ -128,7 +285,7 @@ def get_filtered_films(data, filter_options):
                     if not filtered_films_3:
                             return []
             elif i.startswith("year"):
-                #get the decade and add the year to it
+                is_filtered = True
                 for j in filter_options:
                     if j.startswith("dec"):
                         year = int(j.split("_")[1]) + int(i.split("_")[-1])
@@ -137,7 +294,7 @@ def get_filtered_films(data, filter_options):
                         if not filtered_films_4:
                             return []
             elif i.startswith("run"):
-                
+                is_filtered = True
                 if filtered_films_4:
                     dataToUse = filtered_films_4
                 elif filtered_films_3:
@@ -159,6 +316,7 @@ def get_filtered_films(data, filter_options):
                     if not filtered_films_5:
                         return []
             elif i.startswith("gen"):
+                is_filtered = True
                 if filtered_films_6:
                     dataToUse = filtered_films_6
                 elif filtered_films_5:
@@ -179,6 +337,7 @@ def get_filtered_films(data, filter_options):
                 if not filtered_films_6:
                         return []
             elif i.startswith("country"):
+                is_filtered = True
                 if filtered_films_7:
                     dataToUse = filtered_films_7
                 elif filtered_films_6:
@@ -255,12 +414,12 @@ def get_filtered_decade(data,decade_option):
         decade_end = 1899
     else:
         decade_end = decade_start + 9
-    filtered_films = [film for film in data if decade_start <= film.year_released <= decade_end]
+    filtered_films = [film for film in data if decade_start <= int(film.year_released) <= decade_end]
     return filtered_films
 
 def get_sorted_films(f,sorting_option):
     if sorting_option == 'year_latest':
-        sorted_films = sorted(f, key=lambda film: film.year_released, reverse=True)
+        sorted_films = sorted(f, key=lambda film: int(film.year_released), reverse=True)
     elif sorting_option == 'year_earliest':
         sorted_films = sorted(f, key=lambda film: film.year_released)
     elif sorting_option == 'rating_highest':
