@@ -11,77 +11,67 @@ class DataHandler:
     TMDB_API_KEY = "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiIzYTAwZDZlNGFkNzQyYTY0MTZmNjEwYTE0N2E4ODA2NCIsInN1YiI6IjY1OWVlNWVjOTFiNTMwMDFmZGYxZGMxOSIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.r1uBAc6yrAsFwJxICmap8RrNk8Cf_w1RIwlrwTu4aPM"
 
     def __init__(self):
-        self.films = []
-        self.output_films = []
+        self.populating_movies = []
         self.unreadable_films = []
+
+        self.films = []
+        self.diary = []
+        self.watchlist = []
+        
         self.temp_title = None
         self.temp_date = None
         self.average_rating = 0.0
         self.user_rating = None
-        self.diary = []
-        self.watchlist = []
-            
-    def check_record_exists(self,url,cursor):
-        
+
+    def check_record_exists(self,url,cursor,date_added):
         exists = False
-        statement = f"SELECT id FROM film WHERE letterboxd_url = ?"
+        statement = "SELECT film.id, film.title, film.release_year, film.letterboxd_url, GROUP_CONCAT(DISTINCT g.name) AS genres, GROUP_CONCAT(DISTINCT fc.country) AS countries, film.runtime, film.image, film.rating \
+                    FROM film \
+                    LEFT JOIN film_genre AS fg ON film.id = fg.film_id \
+                    LEFT JOIN genre AS g ON fg.genre_id = g.id \
+                    LEFT JOIN film_country AS fc ON fc.film_id = film.id \
+                    WHERE film.letterboxd_url = ? \
+                    GROUP BY film.id;"
         cursor.execute(statement, (url,))
         row = cursor.fetchone()
-        
+
         if row:
+            id, title, release_year, letterboxd_url, genres_str, countries_str, runtime, image_url, rating = row
+            genres = genres_str.split(",")
+            production_countries = countries_str.split(",")
 
-            statement = f"SELECT film.id, film.title, film.release_year, film.letterboxd_url, film.date_added, GROUP_CONCAT(DISTINCT g.name) AS genres, GROUP_CONCAT(DISTINCT fc.country) AS countries, film.runtime, film.image, film.rating FROM film INNER JOIN film_genre AS fg ON film.id = fg.film_id INNER JOIN genre AS g ON fg.genre_id = g.id INNER JOIN film_country AS fc ON fc.film_id = film.id WHERE film.id = ? GROUP BY film.id;"
-            cursor.execute(statement, (row[0],))
-            row = cursor.fetchone()
-
-            id = row[0]
-            title = row[1]
-            release_year = row[2]
-            date_added = row[4]
-            letterboxd_url = row[3]
-            genres = row[5].split(",")
-            production_countries = row[6].split(",")
-            runtime = row[7]
-            image_url = row[8]
-            rating = row[9]
             cast = []
             crew = []
-            
-            statement = "SELECT pcast.person_id, p.name, pcast.character, p.image FROM film_person_cast AS pcast INNER JOIN person AS p ON pcast.person_id = p.id WHERE film_id = ? "
+
+            statement = "SELECT pcast.person_id, p.name, pcast.character, p.image \
+                        FROM film_person_cast AS pcast \
+                        INNER JOIN person AS p ON pcast.person_id = p.id \
+                        WHERE film_id = ? "
             cursor.execute(statement, (id,))
             cast_row = cursor.fetchall()
             for c in cast_row:
-                p_id = c[0]
-                p_name = c[1]
-                p_character = c[2]
-                p_image = c[3]
-                cast.append(Person(p_id,p_name,character=p_character,p_image=p_image))
+                p_id, p_name, p_character, p_image = c
+                cast.append(Person(p_id, p_name, character=p_character, p_image=p_image))
 
-            statement = "SELECT pcrew.person_id, p.name, pcrew.job, p.image FROM film_person_crew AS pcrew INNER JOIN person AS p ON pcrew.person_id = p.id WHERE film_id = ?"
+            statement = "SELECT pcrew.person_id, p.name, pcrew.job, p.image \
+                        FROM film_person_crew AS pcrew \
+                        INNER JOIN person AS p ON pcrew.person_id = p.id \
+                        WHERE film_id = ?"
             cursor.execute(statement, (id,))
             crew_row = cursor.fetchall()
             for c in crew_row:
-                p_id = c[0]
-                p_name = c[1]
-                p_job = c[2]
-                p_image = c[3]
-                crew.append(Person(p_id,p_name,job=p_job,p_image=p_image))
+                p_id, p_name, p_job, p_image = c
+                crew.append(Person(p_id, p_name, job=p_job, p_image=p_image))
 
-            self.films.append(Film(date_added,title,release_year,letterboxd_url,id,FilmDetails(genres,production_countries,runtime,cast,crew,image_url,rating,self.user_rating)))
-            exists = True  
-        
-        return exists  
+            self.populating_movies.append(Film(date_added, title, release_year, letterboxd_url, id, FilmDetails(genres, production_countries, runtime, cast, crew, image_url, rating, self.user_rating)))
+            exists = True
 
-    def is_valid_date_format(self,date_string):
-        # Define the regular expression for the 'YYYY-MM-DD' format
-        date_pattern = re.compile(r'^\d{4}-\d{2}-\d{2}$')
-
-        # Check if the date_string matches the pattern
-        return bool(date_pattern.match(date_string))
+        return exists
     
-    #Using letterboxd url from CSV get tmdb ID from the button on website
-    def scrape_data(self,data):
+    def process_data(self,data,choice):
 
+        self.populating_movies = []
+        
         conn = sqlite3.connect('database/FilmDataDB.db')
         cursor = conn.cursor()
 
@@ -89,14 +79,15 @@ class DataHandler:
 
             url = item[0]
             self.user_rating = item[1]
-            date_added = datetime.now()
+            date_added = item[2] if item[2] else None
 
-            if not self.check_record_exists(url,cursor):                
+            if not self.check_record_exists(url,cursor,date_added):                
 
                 page = requests.get(url)
                 soup = BeautifulSoup(page.content,"html.parser")
                 tmdb_link = soup.find("a", {"class": "micro-button track-event", "data-track-action": "TMDb", "target": "_blank"})
                 average_rating_label = soup.find("meta", {"name": "twitter:label2", "content": "Average rating"})
+
                 if average_rating_label:
                     next_sibling = average_rating_label.find_next_sibling("meta")
                     if next_sibling:
@@ -113,7 +104,7 @@ class DataHandler:
                         details = self.parse_api(tmdb_id,cursor)
 
                         if details:
-                            cursor.execute(f"INSERT INTO film (id, title, release_year, date_added, runtime, letterboxd_url, image, rating) VALUES (?,?,?,?,?,?,?,?)",(tmdb_id, self.temp_title, self.temp_date, date_added, details.runtime, url, details.image_url,self.average_rating))
+                            cursor.execute(f"INSERT INTO film (id, title, release_year, runtime, letterboxd_url, image, rating) VALUES (?,?,?,?,?,?,?)",(tmdb_id, self.temp_title, self.temp_date, details.runtime, url, details.image_url,self.average_rating))
                             
                             for g in details.genres:
                                 cursor.execute("INSERT INTO film_genre (film_id, genre_id) VALUES (?,?)",(tmdb_id,int(g.id)))
@@ -138,9 +129,7 @@ class DataHandler:
                                 else:
                                     print(f"Record with film_id={tmdb_id} and person_id={p.id} already exists.")
 
-                            
-                        
-                            self.films.append(Film(date_added,self.temp_title,self.temp_date,url,tmdb_id,details))
+                            self.populating_movies.append(Film(date_added,self.temp_title,self.temp_date,url,tmdb_id,details))
                             conn.commit()
                         
                         else:
@@ -152,37 +141,34 @@ class DataHandler:
                     print(f"{url}: Could Not Find TMDb Link")
         conn.close()
 
-    #Get general details from api
-    def get_tmdb_film_details(self,id):
-        url = "https://api.themoviedb.org/3/movie/" + str(id)+ "?language=en-US"
+        if choice == 'f':
+            self.films = self.populating_movies
+        elif choice == 'w':
+            self.watchlist = self.populating_movies
+        elif choice == 'd':
+            self.diary = self.populating_movies
+
+    def get_tmdb_film_data(self, id):
+        url_details = f"https://api.themoviedb.org/3/movie/{id}?language=en-US"
+        url_credits = f"https://api.themoviedb.org/3/movie/{id}/credits?language=en-US"
 
         headers = {
             "accept": "application/json",
             "Authorization": f"Bearer {self.TMDB_API_KEY}"
         }
 
-        response = requests.get(url, headers=headers)
+        response_details = requests.get(url_details, headers=headers)
+        response_credits = requests.get(url_credits, headers=headers)
 
+        film_details = json.loads(response_details.text)
+        film_credits = json.loads(response_credits.text)
 
-        return json.loads(response.text)    
-
-    #Get person details from api
-    def get_tmdb_film_credits(self,id):
-        url = "https://api.themoviedb.org/3/movie/"+str(id)+"/credits?language=en-US"
-
-        headers = {
-            "accept": "application/json",
-            "Authorization": f"Bearer {self.TMDB_API_KEY}"
-        }
-        response = requests.get(url, headers=headers)
-
-        return json.loads(response.text) 
+        return film_details, film_credits
     
     #Get API info for a single movie using ID
     def parse_api(self,id,cursor):
-        complete_data_details = self.get_tmdb_film_details(id)
-        complete_data_credits = self.get_tmdb_film_credits(id)
-        
+        complete_data_details, complete_data_credits = self.get_tmdb_film_data(id)
+            
         if 'success' not in complete_data_details:
             
             self.temp_date = complete_data_details["release_date"][:4]
@@ -192,35 +178,18 @@ class DataHandler:
             people = self.insert_person_db(complete_data_credits,cursor)
 
             runtime = complete_data_details["runtime"]  
-            genres = []
-            production_countries = []
-            cast = []
-            crew = []
+            genres = [Genre(g["id"], g["name"]) for g in complete_data_details["genres"]]
+            production_countries = [c["name"] for c in complete_data_details["production_countries"]]
+            
+            # Separate cast and crew
+            cast = [Person(p["id"], p["name"], character=p["character"], p_image=p["profile_path"]) for p in people if "character" in p]
+            crew = [Person(p["id"], p["name"], job=p["job"], p_image=p["profile_path"]) for p in people if "character" not in p]
 
-            for g in complete_data_details["genres"]:
-                g_id = g["id"]
-                g_name = g["name"]
-                genres.append(Genre(g_id,g_name))     
-                
-            for c in complete_data_details["production_countries"]:
-                pc_name = c["name"]
-                production_countries.append(pc_name)
-
-            for p in people:
-                p_id = p["id"]
-                p_name = p["name"]
-                p_image = p["profile_path"]
-                if "character" in p:
-                    p_character = p["character"]
-                    cast.append(Person(p_id,p_name,character=p_character,p_image=p_image))
-                else:
-                    p_job = p["job"]
-                    crew.append(Person(p_id,p_name,job=p_job,p_image=p_image))
+            return FilmDetails(genres, production_countries, runtime, cast, crew, image_url, self.average_rating, self.user_rating)
         else:
             return None
 
-        return FilmDetails(genres,production_countries,runtime,cast,crew,image_url,self.average_rating,self.user_rating)
-
+    #inserting  each cast & crew member into the database
     def insert_person_db(self,credits,cursor):
         people = credits['cast']
         people.extend(credits['crew'])

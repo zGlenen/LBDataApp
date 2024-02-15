@@ -8,6 +8,8 @@ from DataHandler import DataHandler
 
 app = Flask(__name__)
 output_data_for_films = []
+output_data_for_watchlist = []
+output_data_for_diary = []
 output_data_for_cast = []
 output_data_for_crew = []
 output_data_for_dashboard = {}
@@ -17,7 +19,6 @@ is_filtered = False
 @app.route('/')
 def index():
     return render_template('index.html')
-
 
 @app.route('/process', methods=['POST'])
 def process():
@@ -35,11 +36,26 @@ def process():
 
     data_handler.insert_genre_db()
 
-    films = scraper.scrape_user(data)
+    diary_films = scraper.scrape_user(data,"films/diary")
+    diary_letterboxd_urls = scraper.get_uris(diary_films)
+    data_handler.process_data(diary_letterboxd_urls,'d')
+    global output_data_for_diary
+    output_data_for_diary= data_handler.diary
+
+
+    watchlist_films = scraper.scrape_user(data,"watchlist")
+    watchlist_letterboxd_urls = scraper.get_uris(watchlist_films)
+    data_handler.process_data(watchlist_letterboxd_urls,'w')
+    global output_data_for_watchlist
+    output_data_for_watchlist= data_handler.watchlist
+
+    films = scraper.scrape_user(data,"films")
     letterboxd_urls = scraper.get_uris(films)
-    data_handler.scrape_data(letterboxd_urls)
+    data_handler.process_data(letterboxd_urls,'f')
     global output_data_for_films 
     output_data_for_films = data_handler.films
+
+
     global output_data_for_cast
     global output_data_for_crew
     output_data_for_cast = data_handler.get_people_for_search("cast")
@@ -79,8 +95,8 @@ def people_search():
     
     return render_template('people_search.html',people=output_data_for_people)
 
-@app.route('/films')
-def films():
+@app.route('/process_films')
+def process_films():
     global output_data_for_films
     global filtered_films
     global is_filtered
@@ -94,8 +110,6 @@ def films():
     filter_options = request.args
     filtered_films = get_filtered_films(output_data_for_films,filter_options)
 
-    
-
     page = request.args.get(get_page_parameter(), type=int, default=1)
     per_page = 20  # Number of films per page
     offset = (page - 1) * per_page
@@ -108,6 +122,62 @@ def films():
     pagination = Pagination(page=page, total=len(filtered_films if is_filtered else sorted_films), per_page=per_page, css_framework='bootstrap')
 
     return render_template('films.html', films=paginated_films, pagination=pagination, og_films=output_data_for_films)
+
+@app.route('/process_diary')
+def process_diary():
+    global output_data_for_diary
+    global filtered_films
+    global is_filtered
+
+    if not output_data_for_diary:
+        return render_template('error.html')
+    
+    sorting_option = request.args.get('sorting_option', default='year_latest', type=str)
+    sorted_films = get_sorted_films(filtered_films if filtered_films else output_data_for_diary,sorting_option)
+    
+    filter_options = request.args
+    filtered_films = get_filtered_films(output_data_for_diary,filter_options)
+
+    page = request.args.get(get_page_parameter(), type=int, default=1)
+    per_page = 20  # Number of films per page
+    offset = (page - 1) * per_page
+    if is_filtered:
+        paginated_films = filtered_films[offset: offset + per_page]
+    else:
+        paginated_films = sorted_films[offset: offset + per_page]
+
+
+    pagination = Pagination(page=page, total=len(filtered_films if is_filtered else sorted_films), per_page=per_page, css_framework='bootstrap')
+
+    return render_template('diary.html', films=paginated_films, pagination=pagination, og_films=output_data_for_diary)
+
+@app.route('/process_watchlist')
+def process_watchlist():
+    global output_data_for_watchlist
+    global filtered_films
+    global is_filtered
+
+    if not output_data_for_watchlist:
+        return render_template('error.html')
+    
+    sorting_option = request.args.get('sorting_option', default='year_latest', type=str)
+    sorted_films = get_sorted_films(filtered_films if filtered_films else output_data_for_watchlist,sorting_option)
+    
+    filter_options = request.args
+    filtered_films = get_filtered_films(output_data_for_watchlist,filter_options)
+
+    page = request.args.get(get_page_parameter(), type=int, default=1)
+    per_page = 20  # Number of films per page
+    offset = (page - 1) * per_page
+    if is_filtered:
+        paginated_films = filtered_films[offset: offset + per_page]
+    else:
+        paginated_films = sorted_films[offset: offset + per_page]
+
+
+    pagination = Pagination(page=page, total=len(filtered_films if is_filtered else sorted_films), per_page=per_page, css_framework='bootstrap')
+
+    return render_template('watchlist.html', films=paginated_films, pagination=pagination, og_films=output_data_for_watchlist)
 
 def get_total_actor_count(data):
     actor_count = {}

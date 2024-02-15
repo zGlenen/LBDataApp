@@ -172,6 +172,7 @@
   <table class="table table-dark table-sm w-auto mx-auto">
       <thead>
           <tr>
+                <th scope="col">Watched</th>
               <th scope="col">Title</th>
               <th scope="col">Your Rating</th>
               <th scope="col">Release Year</th>
@@ -184,6 +185,7 @@
       <tbody>
           {% for film in films %}
           <tr>
+                <td class="align-middle">{{ film.date_added }}</td>
               <td class="align-middle">{{ film.title }}</td>
               <td class="align-middle">{{ film.details.user_rating }}</td>
               <td class="align-middle">{{ film.year_released }}</td>

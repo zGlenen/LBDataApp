@@ -17,7 +17,6 @@ CREATE TABLE "film" (
     "id"       INTEGER NOT NULL PRIMARY KEY,
     "title"         TEXT NOT NULL,
     "release_year"  INTEGER NOT NULL,
-    "date_added"    TEXT,
     "letterboxd_url" TEXT,
     "runtime"       INTEGER NOT NULL,
     "image" TEXT,

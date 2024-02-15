@@ -32,7 +32,16 @@
                   <a class="nav-link" aria-current="page" href="/dashboard">Dashboard</a>
                 </li>
                 <li class="nav-item">
-                  <a class="nav-link" href="/films">Films</a>
+                  <div class="dropdown">
+                    <a class="nav-link dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                      Films
+                    </a>
+                      <ul class="dropdown-menu dropdown-menu-dark">
+                        <li><a class="dropdown-item" href="/process_films">All Films</a></li>
+                        <li><a class="dropdown-item" href="/process_watchlist">Watchlist</a></li>
+                        <li><a class="dropdown-item" href="/process_diary">Diary</a></li>
+                      </ul>
+                  </div>
                 </li>
                 <li class="nav-item">
                   <a class="nav-link" href="#">Countries</a>
